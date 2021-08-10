@@ -50,7 +50,6 @@ numeralMap.set("M", 1000);
  * */
 
 function numberalToInteger(numerals) {
-  console.log("-----------------------------");
   const chars = numerals.split("");
   let workingTotal = 0;
   let next;
@@ -58,43 +57,29 @@ function numberalToInteger(numerals) {
   for (let index = 0; index < chars.length; index++) {
     const currentChar = chars[index];
     const current = numeralMap.get(currentChar);
-    console.log(current);
     if (index === 0 && !chars[index + 1]) {
-      console.log("only one");
       workingTotal = workingTotal + current;
-      console.log(workingTotal);
     } else {
-      console.log("more than one");
       const nextChar = chars[index + 1];
       if (nextChar) {
-        console.log("next char exists");
         next = numeralMap.get(nextChar);
-        console.log(next);
         if (next <= current) {
-          console.log("next is smaller or equal");
           workingTotal = workingTotal + current;
-          console.log(workingTotal);
         } else {
-          console.log("next is bigger");
           workingTotal = workingTotal + (next - current);
           index++;
         }
       } else {
-        console.log("no next char");
         const previous = numeralMap.get(chars[index - 1]);
-        console.log(previous);
         if (previous >= current) {
           workingTotal = workingTotal + current;
-          console.log(workingTotal);
         } else {
           workingTotal = workingTotal - current;
-          console.log(workingTotal);
         }
       }
     }
   }
 
-  console.log("----------------------------- answer");
   return workingTotal;
 }
 
