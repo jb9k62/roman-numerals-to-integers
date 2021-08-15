@@ -1,24 +1,14 @@
+const assert = require("assert");
+
 const numberalToInteger = require("./main").numberalToInteger;
 
-/*
- * IV            = 4
- * VII           = 7
- * XXIV          = 24
- * XXXI          = 31
- * CCCLXIX       = 369
- * CD            = 400
- * CDXLVIII      = 448
- * MMDCCLI       = 2751
- *
- * smaller infront of larger = subtract
- * larger after smaller = addition
- * */
-
-console.log(numberalToInteger("IV"));
-console.log(numberalToInteger("VII"));
-console.log(numberalToInteger("XXIV"));
-console.log(numberalToInteger("XXXI"));
-console.log(numberalToInteger("CCCLXIX"));
-console.log(numberalToInteger("CD"));
-console.log(numberalToInteger("CDXLVIII"));
-console.log(numberalToInteger("MMDCCLI"));
+console.log("Running tests...");
+assert.strictEqual(numberalToInteger("IV"), 4);
+assert.strictEqual(numberalToInteger("VII"), 7);
+assert.strictEqual(numberalToInteger("XXIV"), 24);
+assert.strictEqual(numberalToInteger("XXXI"), 31);
+assert.strictEqual(numberalToInteger("CCCLXIX"), 369);
+assert.strictEqual(numberalToInteger("CD"), 400);
+assert.strictEqual(numberalToInteger("CDXLVIII"), 448);
+assert.strictEqual(numberalToInteger("MMDCCLI"), 2751);
+console.log("Tests passed.");
