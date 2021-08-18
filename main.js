@@ -1,69 +1,128 @@
-const numeralMap = new Map();
+const ADD_OPERATION = "ADD";
+const SUBTRACT_OPERATION = "SUBTRACT";
 
-numeralMap.set("I", 1);
-numeralMap.set("V", 5);
-numeralMap.set("X", 10);
-numeralMap.set("L", 50);
-numeralMap.set("C", 100);
-numeralMap.set("D", 500);
-numeralMap.set("M", 1000);
-
-function numeralToInteger(numerals = "") {
-  if (typeof numerals !== "string") {
-    throw new ValidationError("Incorrect input.");
+class Converter {
+  #numeralMap = new Map(
+    Object.entries({ I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 })
+  );
+  #numerals;
+  #total = 0;
+  constructor(numerals) {
+    if (typeof numerals !== "string") {
+      throw new ValidationError("Incorrect input.");
+    }
+    this.#numerals = numerals.toUpperCase();
   }
-  const chars = numerals.toUpperCase().split("");
-  let workingTotal = 0;
-  let next;
+  getNumeralMap() {
+    return this.#numeralMap;
+  }
+  start() {
+    let processIndex = 0;
+    do {
+      const numeral = new Numeral(
+        this.#numerals[processIndex],
+        this.getNumeralMap()
+      );
+      const result = numeral.process(this.#numerals, processIndex);
+      if (result.operation === ADD_OPERATION) {
+        this.#total = this.#total + result.value;
+      } else {
+        this.#total = this.#total - result.value;
+      }
+      processIndex = result.nextIndex;
+    } while (processIndex);
+    return this.#total;
+  }
+}
 
-  for (let index = 0; index < chars.length; index++) {
-    const currentChar = chars[index];
-    if (new RegExp(`${currentChar}{4}`).test(numerals.substring(index))) {
+class Numeral {
+  #numeral;
+  #numeralValue;
+  #numeralMap;
+
+  constructor(numeral, map) {
+    if (!numeral || !(map instanceof Map)) {
+      throw new ValidationError("Instantiated with incorrect arguments.");
+    }
+    this.#numeral = numeral;
+    this.#numeralMap = map;
+    this.#numeralValue = this.#getNumeralValue(numeral);
+  }
+
+  #getNumeralValue(numeral) {
+    const value = this.#numeralMap.get(numeral);
+    if (!value) {
+      throw new ValidationError(
+        `Numeral ${numeral} is not defined in Roman numeral set.`
+      );
+    }
+    return value;
+  }
+
+  process(numerals, index) {
+    this.#validateNoMoreThanThreeOfSameOccurSequentially(
+      numerals.substring(index)
+    );
+
+    let previous;
+    let next;
+    let afterNext;
+    if (index > 0) {
+      previous = this.#getNumeralValue(numerals[index - 1]);
+    }
+    if (index + 1 < numerals.length) {
+      next = this.#getNumeralValue(numerals[index + 1]);
+    }
+    if (index + 2 < numerals.length) {
+      afterNext = this.#getNumeralValue(numerals[index + 2]);
+    }
+    const current = this.#getNumeralValue(numerals[index]);
+    if (next && afterNext) {
+      this.#validateNextTwoArentLarger(
+        next,
+        afterNext,
+        numerals.substring(index)
+      );
+    }
+
+    if (numerals.length === 1) {
+      return {
+        value: current,
+        operation: ADD_OPERATION,
+        nextIndex: null,
+      };
+    }
+    if (next) {
+      return {
+        value: next <= current ? current : next - current,
+        operation: ADD_OPERATION,
+        nextIndex: next <= current ? index + 1 : afterNext ? index + 2 : null,
+      };
+    } else {
+      return {
+        value: current,
+        operation: previous >= current ? ADD_OPERATION : SUBTRACT_OPERATION,
+        nextIndex: null,
+      };
+    }
+  }
+  #validateNoMoreThanThreeOfSameOccurSequentially(string) {
+    if (new RegExp(`${this.#numeral}{4}`).test(string)) {
       throw new ValidationError(
         "Four sequential occurrences of same numeral. Order should be different."
       );
     }
-    const current = numeralMap.get(currentChar);
-    if (!current) {
-      throw new ValidationError("Unknown numeral encountered.");
-    }
-    if (index === 0 && !chars[index + 1]) {
-      workingTotal = workingTotal + current;
-    } else {
-      const nextChar = chars[index + 1];
-      if (nextChar) {
-        next = numeralMap.get(nextChar);
-        if (!next) {
-          throw new ValidationError("Unknown numeral encountered.");
-        }
-        const charAfterNext = chars[index + 2];
-        if (charAfterNext) {
-          const intAfterNext = numeralMap.get(charAfterNext);
-          if (!intAfterNext) {
-            throw new ValidationError("Unknown numeral encountered.");
-          }
-          if (next > current && intAfterNext > current) {
-            throw new ValidationError("Incorrect sequence of numerals.");
-          }
-        }
-        if (next <= current) {
-          workingTotal = workingTotal + current;
-        } else {
-          workingTotal = workingTotal + (next - current);
-          index++;
-        }
-      } else {
-        const previous = numeralMap.get(chars[index - 1]);
-        if (previous >= current) {
-          workingTotal = workingTotal + current;
-        } else {
-          workingTotal = workingTotal - current;
-        }
-      }
+  }
+  #validateNextTwoArentLarger(next, afterNext, numeralSubString) {
+    if (next > this.#numeralValue && afterNext > this.#numeralValue) {
+      throw new ValidationError(
+        `Numerals ${numeralSubString.substring(
+          0,
+          3
+        )} is not in the correct order.`
+      );
     }
   }
-
-  return workingTotal;
 }
 
 class ValidationError extends Error {
@@ -73,7 +132,4 @@ class ValidationError extends Error {
   }
 }
 
-module.exports = {
-  numeralToInteger,
-  ValidationError,
-};
+module.exports = { Converter, ValidationError };
