@@ -1,6 +1,3 @@
-const ADD_OPERATION = "ADD";
-const SUBTRACT_OPERATION = "SUBTRACT";
-
 class Converter {
   #numeralMap = new Map(
     Object.entries({ I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 })
@@ -13,43 +10,29 @@ class Converter {
     }
     this.#numerals = numerals.toUpperCase();
   }
-  getNumeralMap() {
-    return this.#numeralMap;
-  }
-  start() {
-    let processIndex = 0;
-    do {
-      const numeral = new Numeral(
-        this.#numerals[processIndex],
-        this.getNumeralMap()
+  static #validateNoMoreThanThreeOfSameOccurSequentially(numerals) {
+    if (new RegExp(`${numerals[0]}{4}`).test(numerals)) {
+      throw new ValidationError(
+        "Four sequential occurrences of same numeral. Order should be different."
       );
-      const result = numeral.process(this.#numerals, processIndex);
-      if (result.operation === ADD_OPERATION) {
-        this.#total = this.#total + result.value;
-      } else {
-        this.#total = this.#total - result.value;
-      }
-      processIndex = result.nextIndex;
-    } while (processIndex);
-    return this.#total;
-  }
-}
-
-class Numeral {
-  #numeral;
-  #numeralValue;
-  #numeralMap;
-
-  constructor(numeral, map) {
-    if (!numeral || !(map instanceof Map)) {
-      throw new ValidationError("Instantiated with incorrect arguments.");
     }
-    this.#numeral = numeral;
-    this.#numeralMap = map;
-    this.#numeralValue = this.#getNumeralValue(numeral);
   }
-
-  #getNumeralValue(numeral) {
+  static #validateNextTwoArentLarger({
+    current,
+    next,
+    afterNext,
+    numeralSubString,
+  }) {
+    if (next > current && afterNext > current) {
+      throw new ValidationError(
+        `Numerals ${numeralSubString.substring(
+          0,
+          3
+        )} is not in the correct order.`
+      );
+    }
+  }
+  getNumeralValue(numeral) {
     const value = this.#numeralMap.get(numeral);
     if (!value) {
       throw new ValidationError(
@@ -58,70 +41,108 @@ class Numeral {
     }
     return value;
   }
-
-  process(numerals, index) {
-    this.#validateNoMoreThanThreeOfSameOccurSequentially(
-      numerals.substring(index)
+  start() {
+    let processIndex = 0;
+    const getValue = this.getNumeralValue.bind(this);
+    const linkedNumerals = this.#numerals.split("").map(
+      (numeral, index) =>
+        new NumeralWithCertainSiblings({
+          getNumeralIntegerValue: getValue,
+          numerals: this.#numerals,
+          index,
+        })
     );
 
-    let previous;
-    let next;
-    let afterNext;
-    if (index > 0) {
-      previous = this.#getNumeralValue(numerals[index - 1]);
-    }
-    if (index + 1 < numerals.length) {
-      next = this.#getNumeralValue(numerals[index + 1]);
-    }
-    if (index + 2 < numerals.length) {
-      afterNext = this.#getNumeralValue(numerals[index + 2]);
-    }
-    const current = this.#getNumeralValue(numerals[index]);
-    if (next && afterNext) {
-      this.#validateNextTwoArentLarger(
-        next,
-        afterNext,
-        numerals.substring(index)
+    do {
+      const currentLinkedNumeral = linkedNumerals[processIndex];
+      const currentValue = currentLinkedNumeral.getValue();
+      if (linkedNumerals.length === 1) {
+        return (this.#total += currentValue);
+      }
+      Converter.#validateNoMoreThanThreeOfSameOccurSequentially(
+        this.#numerals.substring(processIndex)
       );
-    }
+      const nextValue = currentLinkedNumeral.getNext();
+      const afterNextValue = currentLinkedNumeral.getAfterNext();
+      if (nextValue && afterNextValue) {
+        Converter.#validateNextTwoArentLarger({
+          current: currentValue,
+          next: nextValue,
+          afterNext: afterNextValue,
+          numeralSubString: this.#numerals.substring(processIndex),
+        });
+      }
+      if (nextValue) {
+        if (nextValue <= currentValue) {
+          this.#total += currentValue;
+          processIndex += 1;
+        } else {
+          this.#total += nextValue - currentValue;
+          if (afterNextValue) {
+            processIndex += 2;
+          } else {
+            processIndex = null;
+          }
+        }
+      } else {
+        if (currentLinkedNumeral.getPrevious() >= currentValue) {
+          this.#total += currentValue;
+        } else {
+          this.#total -= currentValue;
+        }
+        processIndex = null;
+      }
+    } while (processIndex);
+    return this.#total;
+  }
+}
 
-    if (numerals.length === 1) {
-      return {
-        value: current,
-        operation: ADD_OPERATION,
-        nextIndex: null,
-      };
+class Numeral {
+  #numeral;
+  #numeralValue;
+
+  constructor(numeral, getValue) {
+    if (!numeral || typeof getValue !== "function") {
+      throw new ValidationError("Instantiated with incorrect arguments.");
     }
-    if (next) {
-      return {
-        value: next <= current ? current : next - current,
-        operation: ADD_OPERATION,
-        nextIndex: next <= current ? index + 1 : afterNext ? index + 2 : null,
-      };
-    } else {
-      return {
-        value: current,
-        operation: previous >= current ? ADD_OPERATION : SUBTRACT_OPERATION,
-        nextIndex: null,
-      };
-    }
+    this.#numeral = numeral;
+    this.#numeralValue = getValue(numeral);
   }
-  #validateNoMoreThanThreeOfSameOccurSequentially(string) {
-    if (new RegExp(`${this.#numeral}{4}`).test(string)) {
-      throw new ValidationError(
-        "Four sequential occurrences of same numeral. Order should be different."
-      );
-    }
+
+  getValue() {
+    return this.#numeralValue;
   }
-  #validateNextTwoArentLarger(next, afterNext, numeralSubString) {
-    if (next > this.#numeralValue && afterNext > this.#numeralValue) {
-      throw new ValidationError(
-        `Numerals ${numeralSubString.substring(
-          0,
-          3
-        )} is not in the correct order.`
-      );
-    }
+}
+
+class NumeralWithCertainSiblings {
+  #numeral;
+  #previous;
+  #next;
+  #afterNext;
+  #getValue;
+  constructor({ getNumeralIntegerValue, numerals, index }) {
+    this.#getValue = getNumeralIntegerValue;
+    this.#numeral = new Numeral(numerals[index], this.#getValue).getValue();
+    this.#previous = this.#valueOrNull(numerals[index - 1]);
+    this.#next = this.#valueOrNull(numerals[index + 1]);
+    this.#afterNext = this.#valueOrNull(numerals[index + 2]);
+  }
+  #valueOrNull(numeralOrUndefined) {
+    return numeralOrUndefined
+      ? new Numeral(numeralOrUndefined, this.#getValue).getValue()
+      : null;
+  }
+  getValue() {
+    return this.#numeral;
+  }
+  getPrevious() {
+    return this.#previous;
+  }
+  getNext() {
+    return this.#next;
+  }
+  getAfterNext() {
+    return this.#afterNext;
   }
 }
 
