@@ -44,26 +44,32 @@ class Converter {
   start() {
     let processIndex = 0;
     const getValue = this.getNumeralValue.bind(this);
-    const linkedNumerals = this.#numerals.split("").map(
-      (numeral, index) =>
-        new NumeralWithCertainSiblings({
-          getNumeralIntegerValue: getValue,
-          numerals: this.#numerals,
-          index,
-        })
-    );
+    const linkedNumerals = this.#numerals
+      .split("")
+      .map((numeral) => new LinkedNumeral(new Numeral(numeral, getValue)))
+      .map((linkedNumeral, index, array) => {
+        linkedNumeral.setPrevious(array[index - 1]);
+        linkedNumeral.setNext(array[index + 1]);
+        return linkedNumeral;
+      });
 
     do {
       const currentLinkedNumeral = linkedNumerals[processIndex];
-      const currentValue = currentLinkedNumeral.getValue();
+      const currentValue = LinkedNumeral.tryGetOrNull(() =>
+        currentLinkedNumeral.getOwnValue()
+      );
       if (linkedNumerals.length === 1) {
         return (this.#total += currentValue);
       }
       Converter.#validateNoMoreThanThreeOfSameOccurSequentially(
         this.#numerals.substring(processIndex)
       );
-      const nextValue = currentLinkedNumeral.getNext();
-      const afterNextValue = currentLinkedNumeral.getAfterNext();
+      const nextValue = LinkedNumeral.tryGetOrNull(() =>
+        currentLinkedNumeral.getNext().getOwnValue()
+      );
+      const afterNextValue = LinkedNumeral.tryGetOrNull(() =>
+        currentLinkedNumeral.getNext().getNext().getOwnValue()
+      );
       if (nextValue && afterNextValue) {
         Converter.#validateNextTwoArentLarger({
           current: currentValue,
@@ -85,7 +91,11 @@ class Converter {
           }
         }
       } else {
-        if (currentLinkedNumeral.getPrevious() >= currentValue) {
+        if (
+          LinkedNumeral.tryGetOrNull(() =>
+            currentLinkedNumeral.getPrevious().getOwnValue()
+          ) >= currentValue
+        ) {
           this.#total += currentValue;
         } else {
           this.#total -= currentValue;
@@ -114,35 +124,34 @@ class Numeral {
   }
 }
 
-class NumeralWithCertainSiblings {
+class LinkedNumeral {
   #numeral;
   #previous;
   #next;
-  #afterNext;
-  #getValue;
-  constructor({ getNumeralIntegerValue, numerals, index }) {
-    this.#getValue = getNumeralIntegerValue;
-    this.#numeral = new Numeral(numerals[index], this.#getValue).getValue();
-    this.#previous = this.#valueOrNull(numerals[index - 1]);
-    this.#next = this.#valueOrNull(numerals[index + 1]);
-    this.#afterNext = this.#valueOrNull(numerals[index + 2]);
+  constructor(numeral) {
+    this.#numeral = numeral;
   }
-  #valueOrNull(numeralOrUndefined) {
-    return numeralOrUndefined
-      ? new Numeral(numeralOrUndefined, this.#getValue).getValue()
-      : null;
+  static tryGetOrNull(fn) {
+    try {
+      return fn();
+    } catch (error) {
+      return null;
+    }
   }
-  getValue() {
-    return this.#numeral;
+  getOwnValue() {
+    return this.#numeral.getValue();
   }
   getPrevious() {
     return this.#previous;
   }
+  setPrevious(linkedNumeral) {
+    this.#previous = linkedNumeral;
+  }
   getNext() {
     return this.#next;
   }
-  getAfterNext() {
-    return this.#afterNext;
+  setNext(linkedNumeral) {
+    this.#next = linkedNumeral;
   }
 }
 
